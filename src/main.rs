@@ -82,7 +82,7 @@ pub struct SmbiosBoardInfo
     pub board_type:          u8,
     pub num_obj_handle:      *mut u16,
 }
-
+// i dont know how to do this conversion in rust so i did it in c++ and just copied the int values
 const ACPI: u32 = 1094930505;
 const RSMB: u32 = 1381190978;
 
@@ -112,14 +112,13 @@ fn main()
         file.write_all(&buffer).unwrap();
         return;
     }
+
     let mut start = addr_of!(smbios.table_data) as *mut u8;
     let end = start as usize + smbios.length as usize;
-    //println!("{:x?}", addr_of!(start));
 
     loop
     {
         let header: *mut SmbiosHeader = unsafe { transmute(start as *mut u8) };
-        //println!("header: {:x?}", header);
         let header = unsafe { &*header };
         // TODO: somehow add a sanity check so that it doesnt shit itself after systemenclosure
 
@@ -149,7 +148,6 @@ fn main()
             while (*next | *((next as usize + 1) as *mut u8) as u8) != 0
             {
                 next = (next as usize + 1usize) as _;
-                //println!("next: {:x?}", next);
             }
         }
 
@@ -158,7 +156,7 @@ fn main()
         {
             break;
         }
-        //println!("next: {:x?}", next);
+
         start = next;
     }
 }
