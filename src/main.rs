@@ -85,7 +85,6 @@ pub struct SmbiosBoardInfo
 
 const ACPI: u32 = 1094930505;
 const RSMB: u32 = 1381190978;
-const FIRM: u32 = 1179210317;
 
 fn main()
 {
