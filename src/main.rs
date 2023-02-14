@@ -1,4 +1,5 @@
 #![feature(is_some_with)]
+#![feature(pointer_byte_offsets)]
 use std::{
     env,
     fs::File,
@@ -8,7 +9,7 @@ use std::{
 };
 
 use winapi::um::sysinfoapi::GetSystemFirmwareTable;
-
+// TODO: move these to another module and make them private after writing better structs for final serialization
 #[derive(Debug)]
 #[repr(C)]
 pub struct Smbios
@@ -53,17 +54,19 @@ pub enum SmbiosHeaderType
 #[repr(C)]
 pub struct SmbiosProcessorInfo
 {
-    pub header:         SmbiosHeader,
-    pub socket:         u8,
-    pub processor_type: u8,
-    pub family:         u8,
-    pub manufacturer:   u8,
-    pub id:             u64,
-    pub version:        u8,
-    pub voltage:        u8,
-    pub ext_clock:      u16,
-    pub max_speed:      u16,
-    pub current_speed:  u16,
+    pub header:            SmbiosHeader,
+    pub socket:            u8,
+    pub processor_type:    u8,
+    pub family:            u8,
+    pub manufacturer:      u8,
+    pub id:                u64,
+    pub version:           u8,
+    pub voltage:           u8,
+    pub ext_clock:         u16,
+    pub max_speed:         u16,
+    pub current_speed:     u16,
+    pub status:            u8,
+    pub processor_upgrade: u8,
 }
 
 #[derive(Debug)]
@@ -78,9 +81,11 @@ pub struct SmbiosBoardInfo
     pub asset_tag:           u8,
     pub feature_flags:       u8,
     pub location_in_chassis: u8,
-    pub chassis_handle:      u16,
+    pub chassis_handle:      u8,
+    packing:                 u8, // ! it seems like the chassishandle field should be an u16 but that does not work in my machine for some reason, so unless smbiosexplorer is wrong this is needed
     pub board_type:          u8,
-    pub num_obj_handle:      *mut u16,
+    pub num_obj_handle:      u8,
+    pub p_obj_handle:        *mut u8,
 }
 // i dont know how to do this conversion in rust so i did it in c++ and just copied the int values
 const ACPI: u32 = 1094930505;
@@ -119,7 +124,9 @@ fn main()
     loop
     {
         let header: *mut SmbiosHeader = unsafe { transmute(start as *mut u8) };
+        let str_section = unsafe { header as usize + (*header).length as usize } as *mut u8;
         let header = unsafe { &*header };
+
         // TODO: somehow add a sanity check so that it doesnt shit itself after systemenclosure
 
         match header.header_type
@@ -136,22 +143,22 @@ fn main()
                 let board_info = unsafe { &*board_info };
                 dbg!(board_info); //TODO: Handle strings
             }
-            SmbiosHeaderType::Break if header.length == 4 => break,
+            SmbiosHeaderType::Break if header.length == 4 => break, // End-of-Table
             _ =>
             {
                 //TODO: Handle other cases? (datadump?)
             }
         }
 
-        let mut next = (start as usize + header.length as usize) as *mut u8;
+        let mut next = unsafe { start.byte_add(header.length.into()) };
         unsafe {
-            while (*next | *((next as usize + 1) as *mut u8) as u8) != 0
+            while (next.read() | next.byte_add(1).read()) != 0
             {
-                next = (next as usize + 1usize) as _;
+                next = next.byte_add(1);
             }
+            next = next.byte_add(2);
         }
 
-        next = (next as usize + 2) as _;
         if next as usize >= end
         {
             break;
