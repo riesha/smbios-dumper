@@ -8,6 +8,11 @@ use std::{
     ptr::{addr_of, null_mut},
 };
 
+use packed_struct::{
+    prelude::PackedStruct,
+    types::{bits::Bits, ReservedZeroes},
+    PackedStructSlice,
+};
 use winapi::um::sysinfoapi::GetSystemFirmwareTable;
 // TODO: move these to another module and make them private after writing better structs for final serialization
 #[derive(Debug)]
@@ -69,6 +74,98 @@ pub struct SmbiosProcessorInfo
     pub processor_upgrade: u8,
 }
 
+#[derive(Debug)]
+#[repr(C)]
+pub struct SmbiosBiosInfo
+{
+    pub header:                   SmbiosHeader,
+    pub vendor:                   u8,
+    pub version:                  u8,
+    pub starting_address_segment: u16,
+    pub release_date:             u8,
+    pub rom_size:                 u8,
+    pub characteristics:          BiosCharacteristics,
+    pub extension:                u8,
+    pub extension2:               u8,
+    pub system_major_release:     u8,
+    pub system_minor_release:     u8,
+    pub embedded_major_release:   u8,
+    pub embedded_minor_release:   u8,
+    pub extended_rom_size:        u16,
+}
+// ! I HAVE NO IDEA WHAT IM DOING!
+#[derive(PackedStruct, Debug)]
+#[packed_struct(bit_numbering = "msb0")]
+#[packed_struct(size_bytes = "8")]
+pub struct BiosCharacteristics
+{
+    #[packed_field(bits = "0..=1")]
+    pub reserved: ReservedZeroes<Bits<2>>,
+    #[packed_field(bits = "2")]
+    pub unknown: bool,
+    #[packed_field(bits = "3")]
+    pub characteristics_unsupported: bool,
+    #[packed_field(bits = "4")]
+    pub isa_supported: bool,
+    #[packed_field(bits = "5")]
+    pub mca_supported: bool,
+    #[packed_field(bits = "6")]
+    pub eisa_supported: bool,
+    #[packed_field(bits = "7")]
+    pub pci_supported: bool,
+    #[packed_field(bits = "8")]
+    pub pcmcia_supported: bool,
+    #[packed_field(bits = "9")]
+    pub pnp_supported: bool,
+    #[packed_field(bits = "10")]
+    pub apm_supported: bool,
+    #[packed_field(bits = "11")]
+    pub bios_upgradeable: bool,
+    #[packed_field(bits = "12")]
+    pub bios_shadowing_allowed: bool,
+    #[packed_field(bits = "13")]
+    pub vesa_supported: bool,
+    #[packed_field(bits = "14")]
+    pub escd_supported: bool,
+    #[packed_field(bits = "15")]
+    pub cdboot_supported: bool,
+    #[packed_field(bits = "16")]
+    pub selectboot_supported: bool,
+    #[packed_field(bits = "17")]
+    pub biosrom_socketed: bool,
+    #[packed_field(bits = "18")]
+    pub pcmciaboot_supported: bool,
+    #[packed_field(bits = "19")]
+    pub edd_supported: bool,
+    #[packed_field(bits = "20")]
+    pub floppynec_supported: bool,
+    #[packed_field(bits = "21")]
+    pub floppytoshiba_supported: bool,
+    #[packed_field(bits = "22")]
+    pub floppy360kb_supported: bool,
+    #[packed_field(bits = "23")]
+    pub floppy1_2mb_supported: bool,
+    #[packed_field(bits = "24")]
+    pub floppy720kb_supported: bool,
+    #[packed_field(bits = "25")]
+    pub floppy2_88mb_supported: bool,
+    #[packed_field(bits = "26")]
+    pub printscreenservice_supported: bool,
+    #[packed_field(bits = "27")]
+    pub keyboard8042_supported: bool,
+    #[packed_field(bits = "28")]
+    pub serialservice_supported: bool,
+    #[packed_field(bits = "29")]
+    pub printerservice_supported: bool,
+    #[packed_field(bits = "30")]
+    pub cgaservice_supported: bool,
+    #[packed_field(bits = "31")]
+    pub nec_pc98: bool,
+    #[packed_field(bits = "32:47")]
+    pub reserved_for_vendor: ReservedZeroes<Bits<16>>,
+    #[packed_field(bits = "48:63")]
+    pub reserved_for_system_vendor: ReservedZeroes<Bits<16>>,
+}
 #[derive(Debug)]
 #[repr(C)]
 pub struct SmbiosBoardInfo
@@ -142,6 +239,16 @@ fn main()
                 let board_info: *mut SmbiosBoardInfo = unsafe { transmute(header) };
                 let board_info = unsafe { &*board_info };
                 dbg!(board_info); //TODO: Handle strings
+            }
+            SmbiosHeaderType::Bios =>
+            {
+                let bios_info: *mut SmbiosBiosInfo = unsafe { transmute(header) };
+                let bios_info = unsafe { &*bios_info };
+                dbg!(bios_info);
+                let strct = println!(
+                    "characteristics: {:#x?}",
+                    bios_info.characteristics
+                );
             }
             SmbiosHeaderType::Break if header.length == 4 => break, // End-of-Table
             _ =>
